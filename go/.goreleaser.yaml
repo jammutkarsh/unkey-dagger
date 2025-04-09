@@ -1,0 +1,43 @@
+version: 2
+# Should be in the same dir as go.mod and go.sum
+# Add an option to specify the path of this file as per project structure
+builds:
+  - main: ./build/health/main.go
+    id: "health"
+    binary: unkey-dagger-health
+    goos:
+      - linux
+    goarch:
+      - amd64
+
+  - main: ./build/api/main.go # Build Files Goes here
+    id: "api" # Map Binary to Dockerfile
+    binary: unkey-dagger-api # Binary Name should be same as in Dockerfile and GR Image Builder
+    goos:
+      - linux
+    goarch:
+      - amd64
+
+dockers:
+  - image_templates:
+      - "jammutkarsh/{{ .ProjectName }}-health:{{ .Version }}"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--build-arg=BINARY={{ .ProjectName }}-health"
+    ids:
+      - "health"
+    goos: linux
+    push_flags:
+      - --tls-verify=true
+
+  - image_templates:
+      - "jammutkarsh/{{ .ProjectName }}-api:{{ .Version }}"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--build-arg=BINARY={{ .ProjectName }}-api"
+    ids:
+      - "api"
+    goos: linux
+    skip_push: false

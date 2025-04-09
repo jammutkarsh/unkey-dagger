@@ -4,5 +4,12 @@
   "sdk": {
     "source": "typescript"
   },
+  "dependencies": [
+    {
+      "name": "goreleaser",
+      "source": "github.com/Excoriate/daggerverse/goreleaser@v1.15.4",
+      "pin": "9987052c010bcbdda3b4c148c2e7b3fe73817f91"
+    }
+  ],
   "source": "dagger/.dagger"
 }

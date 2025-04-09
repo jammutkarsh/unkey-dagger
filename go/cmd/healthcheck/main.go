@@ -31,9 +31,11 @@ func run(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to perform healthcheck: %w", err)
 	}
+	
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK {
+		fmt.Println("HelloWOrld")
+		// Comment Goes ehre
 		return fmt.Errorf("healthcheck failed with status code %d", res.StatusCode)
 	}
 

@@ -13,13 +13,17 @@
  * rest is a long description with more detail on the module's purpose or usage,
  * if appropriate. All modules should have a short description.
  */
-import { Container, dag, Directory, File, func, object } from "@dagger.io/dagger"
+import { Container, dag, Directory, File, func, object, Socket } from "@dagger.io/dagger"
 
 @object()
 export class Dagger {
-  baseContainerNode: Container
+  @func()
+  checkCachePath(): Container {
+    return dag.container().from("alpine:latest")
+      .withMountedCache("/root/.cache/go-build", dag.cacheVolume("go-build-cache"))
+      .terminal()
+  }
 
-  // Dependency Layer
   @func()
   setupGoContainer(source: Directory): Container {
     return dag.container().from("docker.io/library/golang:1.24")
@@ -28,21 +32,14 @@ export class Dagger {
       .withExec(["go", "mod", "download"])
   }
 
-  // Source Code Layer
-  @func()
-  copyGoFiles(source: Directory): Container {
-    return this.setupGoContainer(source)
-      .withDirectory("/go/src", source, { exclude: ["go.mod", "go.sum"] })
-  }
-
-
-  // Build Layer
   /**
   * Has API and QuotaCheck sub-commands
   */
   @func()
   buildUnkeyAPI(source: Directory): File {
-    return this.copyGoFiles(source)
+    return this.setupGoContainer(source)
+      .withDirectory("/go/src", source, { exclude: ["go.mod", "go.sum"] })
+      .withMountedCache("/root/.cache/go-build", dag.cacheVolume("go-build-cache"))
       .withExec(["go", "build", "-o", "unkey-api", "./build/api/main.go"])
       .file("/go/src/unkey-api")
   }
@@ -52,8 +49,26 @@ export class Dagger {
   */
   @func()
   buildUnkeyHealth(source: Directory): File {
-    return this.copyGoFiles(source)
+    return this.setupGoContainer(source)
+      .withDirectory("/go/src", source, { exclude: ["go.mod", "go.sum"] })
+      .withMountedCache("/root/.cache/go-build", dag.cacheVolume("go-build-cache"))
       .withExec(["go", "build", "-o", "unkey-health", "./build/health/main.go"])
       .file("/go/src/unkey-health")
+  }
+
+  @func()
+  release(gitdir: Directory, dockersocket: Socket): Directory {
+    dag.container()
+    return dag.goreleaser()
+      .withGoCache() // Enable Caching for Go Builds
+      .withSource(gitdir) // to get info related to git tags
+
+      .ctr() // Returning Container to mount Docker
+
+      .withWorkdir("/mnt/go") // go.mod and goreleaser YAML is `go` dir
+      .withUnixSocket("/var/run/docker.sock", dockersocket)
+
+      .withExec(["goreleaser", "release", "--snapshot"])
+      .directory("/mnt/go/dist") // Export the Binary Packages
   }
 }
