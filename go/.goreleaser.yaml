@@ -4,7 +4,7 @@ version: 2
 builds:
   - main: ./build/health/main.go
     id: "health"
-    binary: unkey-dagger-health
+    binary: "{{ .ProjectName }}-health"
     goos:
       - linux
     goarch:
@@ -12,7 +12,7 @@ builds:
 
   - main: ./build/api/main.go # Build Files Goes here
     id: "api" # Map Binary to Dockerfile
-    binary: unkey-dagger-api # Binary Name should be same as in Dockerfile and GR Image Builder
+    binary: "{{ .ProjectName }}-api" # Binary Name should be same as in Dockerfile and GR Image Builder
     goos:
       - linux
     goarch:
@@ -28,8 +28,6 @@ dockers:
     ids:
       - "health"
     goos: linux
-    push_flags:
-      - --tls-verify=true
 
   - image_templates:
       - "jammutkarsh/{{ .ProjectName }}-api:{{ .Version }}"
@@ -40,4 +38,7 @@ dockers:
     ids:
       - "api"
     goos: linux
-    skip_push: false
+
+release:
+  disable: true
+  skip_upload: true
