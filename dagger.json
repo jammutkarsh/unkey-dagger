@@ -11,6 +11,11 @@
       "pin": "9987052c010bcbdda3b4c148c2e7b3fe73817f91"
     },
     {
+      "name": "node",
+      "source": "github.com/dagger/dagger/sdk/typescript/dev/node@3f3fc28e5a2d139dfe5088278a363a5db7acb356",
+      "pin": "3f3fc28e5a2d139dfe5088278a363a5db7acb356"
+    },
+    {
       "name": "registry-config",
       "source": "github.com/sagikazarmark/daggerverse/registry-config@registry-config/v0.8.0",
       "pin": "126b5fbbdad70dbf2a8689600baec2eb78c05ef4"

@@ -3,8 +3,9 @@
   "version": "0.3.0",
   "private": true,
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --incremental",
     "deploy": "pnpm build && wrangler deploy",
+    "start": "wrangler start",
     "dev": "wrangler dev",
     "test": "vitest run -c vitest.unit.ts",
     "test:integration": "vitest run -c vitest.integration.ts --bail=1",

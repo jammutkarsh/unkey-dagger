@@ -1,70 +1,91 @@
-import { argument, Container, dag, Directory, File, func, object, Secret, Socket } from "@dagger.io/dagger"
+/**
+	* A Dagger module for building unkey Projects using Go and Docker.
+	*
+*/
+import { CacheVolume, Container, dag, Directory, File, func, object, Secret, Socket } from "@dagger.io/dagger";
+import { GolangProject } from "./golang";
+import { TSProject } from "./node";
 
-@object()
-class GoProject {
-  source: Directory
-  ctr: Container
-
-  constructor(
-    @argument({ defaultPath: "/", ignore: ["!**/*.go", "!go.sum", "!go.mod"] })
-    source: Directory
-  ) {
-    this.source = source
-    this.ctr = dag.container()
-  }
-
-  @func()
-  container(version: string = "1.24"): GoProject {
-    this.ctr = this.ctr.from(`docker.io/library/golang:${version}`)
-      .withDirectory("/go/src", this.source)
-      .withWorkdir("/go/src")
-      .withExec(["go", "mod", "download"])
-    return this
-  }
-
-  @func()
-  build(output: string, mainFile: string): File {
-    return this.ctr
-      .withMountedCache("/root/.cache/go-build", dag.cacheVolume("go-build-cache"))
-      .withExec(["go", "build", "-o", output, mainFile])
-      .file(`/go/src/${output}`)
-  }
+export interface Project {
+	ctr: Container;
+	source: Directory;
+	buildCache: CacheVolume;
+	packageCache: CacheVolume
 }
 
 @object()
 export class Dagger {
-  @func()
-  checkCachePath(): Container {
-    return dag.container().from("alpine:latest")
-      .withMountedCache("/root/.cache/go-build", dag.cacheVolume("go-build-cache"))
-      .terminal()
-  }
 
-  @func()
-  buildUnkeyAPI(source: Directory): File {
-    const project = new GoProject(source)
-    return project.container().build("unkey-api", "./build/api/main.go")
-  }
+	/**
+	* Sets up the Go project, builds it, and returns the binary file.
+	* @param source - Directory containing the Go source code
+	* @param buildDir - Directory to build the project
+	* @param output - Name of the output binary file
+	* @param mainFile - Path to the main Go file
+	* @returns File - The built binary file
+	* @description This function sets up the Go project, builds it, and returns the binary file.
+	*/
+	@func()
+	buildGoProject(source: Directory, buildDir: string, output: string, mainFile: string): File {
+		const project = new GolangProject(source);
+		return project
+			.setup()
+			.build(output, buildDir, mainFile);
+	}
 
-  @func()
-  buildUnkeyHealth(source: Directory): File {
-    const project = new GoProject(source)
-    return project.container().build("unkey-health", "./build/health/main.go")
-  }
 
-  @func()
-  async release(gitdir: Directory, dockersocket: Socket, ghtoken: string, dockerUser: string, dockerSecret: Secret): Promise<Directory> {
-    var plainTxt = await dockerSecret.plaintext()
-    return dag.goreleaser()
-      .withGoCache() // Enable Caching for Go Builds
-      .withSource(gitdir) // to get info related to git tags
-      .ctr() // Returning Container to mount Docker
-      .withWorkdir("/mnt/go") // go.mod and goreleaser YAML is `go` dir
-      .withUnixSocket("/var/run/docker.sock", dockersocket)
-      .withEnvVariable("GITHUB_TOKEN", ghtoken) // Required by goreleaser, in case a package needs to be published
-      .withSecretVariable("DOCKER_PAT", dockerSecret)
-      .withExec(["sh", "-c", "echo $DOCKER_PAT | docker login --username " + dockerUser + " --password-stdin"])
-      .withExec(["goreleaser", "release", "--clean"])
-      .directory("/mnt/go/dist") // Export the Binary Packages
-  }
+	/**
+	* Build the unkey API binary.
+	*/
+	@func()
+	buildUnkeyAPI(source: Directory, buildDir: string): File {
+		return this.buildGoProject(source, buildDir, "unkey-api", "./build/api/main.go");
+	}
+
+
+	/**
+	* Build the unkey Health binary.
+	*/
+	@func()
+	buildUnkeyHealth(source: Directory, buildDir: string): File {
+		return this.buildGoProject(source, buildDir, "unkey-health", "./build/health/main.go");
+	}
+
+	/**
+	* Build the unkey API TypeScript project.
+	*/
+	@func()
+	buildTypeScript(source: Directory, buildDir: string): Container {
+		const project = new TSProject(source);
+		return project
+		.setup()
+		.build(buildDir, "dist")
+	}
+
+
+	// TODO: Convert it into GolangProject Class
+	/**
+	* Build and release API and health binaries and Docker images using goreleaser.
+	* @param gitDir - Directory containing the source code
+	* @param socket - Socket to mount Docker
+	* @param ghToken - GitHub token for authentication
+	* @param dockerUser - Docker username for authentication
+	* @param dockerSecret - Docker secret for authentication
+	* @returns Directory - Directory containing the binary packages
+	* @description This function uses goreleaser to build and release the Go project.
+	*/
+	@func()
+	async release(gitDir: Directory, socket: Socket, ghToken: string, dockerUser: string, dockerSecret: Secret): Promise<Directory> {
+		return dag.goreleaser()
+			.withGoCache() // Enable Caching for Go Builds
+			.withSource(gitDir) // to get info related to git tags
+			.ctr() // Returning Container to mount Docker
+			.withWorkdir("/mnt/go") // go.mod and goreleaser YAML is `go` dir
+			.withUnixSocket("/var/run/docker.sock", socket)
+			.withEnvVariable("GITHUB_TOKEN", ghToken) // Required by goreleaser, in case a package needs to be published
+			.withSecretVariable("DOCKER_PAT", dockerSecret)
+			.withExec(["sh", "-c", "echo $DOCKER_PAT | docker login --username " + dockerUser + " --password-stdin"])
+			.withExec(["goreleaser", "release", "--clean"])
+			.directory("/mnt/go/dist") // Export the Binary Packages
+	}
 }
