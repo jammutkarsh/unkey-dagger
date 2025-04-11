@@ -29,8 +29,8 @@ export class Dagger {
 	buildGoProject(source: Directory, buildDir: string, output: string, mainFile: string): File {
 		const project = new GolangProject(source);
 		return project
-			.setup()
-			.build(output, buildDir, mainFile);
+			.setup(buildDir)
+			.build(output, mainFile);
 	}
 
 
@@ -55,11 +55,11 @@ export class Dagger {
 	* Build the unkey API TypeScript project.
 	*/
 	@func()
-	buildTypeScript(source: Directory, buildDir: string): Container {
+	buildTypeScript(source: Directory, buildDir: string, output: string): Directory {
 		const project = new TSProject(source);
 		return project
-		.setup()
-		.build(buildDir, "dist")
+			.setup()
+			.build(buildDir, output)
 	}
 
 

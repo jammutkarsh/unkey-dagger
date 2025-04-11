@@ -12,32 +12,32 @@ export class TSProject implements Project {
 	readonly projectDir = "/app/";
 
 	constructor(
-		@argument({ defaultPath: "/", ignore: ["**/*.go", "go.sum", "go.mod", "node_modules", ".dagger"]  })
+		@argument({ defaultPath: "/", ignore: ["**/*.go", "go.sum", "go.mod", "node_modules", "dagger"] })
 		source: Directory
 	) {
 		this.source = source;
 		this.ctr = dag.node().withPnpm().container()
-		this.buildCache = new(CacheVolume) // avoid nil pointer dereference
+		this.buildCache = new (CacheVolume) // avoid nil pointer dereference
 		this.packageCache = dag.cacheVolume("npm-pkg-cache")
 	}
 
 	@func()
 	setup(): TSProject {
 		// Assuming all the package manager files are in the root directory
-		this.ctr.withDirectory(this.projectDir, this.source)
-		.withMountedCache("/root/.cache/go-build", this.buildCache)
-		.withExec(["pnpm", "install", "--prod", "--prefer-frozen-lockfile"])
+		this.ctr = this.ctr.withDirectory(this.projectDir, this.source)
+			.withMountedCache("/root/.cache/pnpm", this.buildCache)
+			// .withExec(["pnpm", "install", "--prod", "--prefer-frozen-lockfile"])
+			.withExec(["pnpm", "install"])
 		return this
 	}
 
 	@func()
-	build(buildDir: string, output: string): Container {
+	build(buildDir: string, output: string): Directory {
 		const workdir = buildDir ? this.projectDir + buildDir : this.projectDir;
 		return this.ctr
-		.withWorkdir(workdir)
-		.terminal()
-		.withExec(["pnpm", "build"])
-		// .file(`/app/${output}`)
+			.withWorkdir(workdir)
+			.withExec(["pnpm", "build", "--verbosity", "10"])
+			.directory(`/app/${output}`)
 	}
 
 	@func()

@@ -22,20 +22,20 @@ export class GolangProject implements Project {
 
 
 	@func()
-	setup(): GolangProject {
+	setup(buildDir: string): GolangProject {
+		const workdir = buildDir ? this.projectDir + buildDir : this.projectDir;
 		// Assuming all the package manager files are in the root directory
-		this.ctr.withDirectory(this.projectDir, this.source)
-		.withMountedCache("/root/.cache/go-build", this.buildCache)
-		.withMountedCache("/go/pkg/mod", this.packageCache)
-		.withExec(["go", "mod", "download"])
+		this.ctr = this.ctr.withDirectory(this.projectDir, this.source)
+			.withWorkdir(workdir)
+			.withMountedCache("/go/pkg/mod", this.packageCache)
+			.withExec(["go", "mod", "download"])
 		return this
 	}
 
 	@func()
-	build(output: string, buildDir: string, mainFile: string): File {
-		const workdir = buildDir ? this.projectDir + buildDir : this.projectDir;
+	build(output: string, mainFile: string): File {
 		return this.ctr
-			.withWorkdir(workdir)
+			.withMountedCache("/root/.cache/go-build", this.buildCache)
 			.withExec(["go", "build", "-o", output, mainFile])
 			.file(`/go/src/${output}`)
 	}
