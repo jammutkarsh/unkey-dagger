@@ -62,7 +62,8 @@ export class Dagger {
       .withWorkdir("/mnt/go") // go.mod and goreleaser YAML is `go` dir
       .withUnixSocket("/var/run/docker.sock", dockersocket)
       .withEnvVariable("GITHUB_TOKEN", ghtoken) // Required by goreleaser, in case a package needs to be published
-      .withExec(["docker", "login", "-u", dockerUser, "--password-stdin"], { stdin: plainTxt })
+      .withSecretVariable("DOCKER_PAT", dockerSecret)
+      .withExec(["sh", "-c", "echo $DOCKER_PAT | docker login --username " + dockerUser + " --password-stdin"])
       .withExec(["goreleaser", "release", "--clean"])
       .directory("/mnt/go/dist") // Export the Binary Packages
   }
