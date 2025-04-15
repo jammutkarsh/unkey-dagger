@@ -20,9 +20,9 @@ builds:
 
 dockers:
   - image_templates:
-      - "jammutkarsh/{{ .ProjectName }}-health:{{ .Version }}"
+      - "jammutkarsh/go-health:dev-{{ .ShortCommit }}"
     dockerfile: Dockerfile
-    use: buildx
+    use: docker
     build_flag_templates:
       - "--build-arg=BINARY={{ .ProjectName }}-health"
     ids:
@@ -32,7 +32,7 @@ dockers:
   - image_templates:
       - "jammutkarsh/{{ .ProjectName }}-api:{{ .Version }}"
     dockerfile: Dockerfile
-    use: buildx
+    use: docker
     build_flag_templates:
       - "--build-arg=BINARY={{ .ProjectName }}-api"
     ids:

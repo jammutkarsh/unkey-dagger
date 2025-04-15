@@ -1,8 +1,7 @@
 import { argument, CacheVolume, Container, dag, Directory, File, func, object } from "@dagger.io/dagger";
-import { Project } from "./index";
 
 @object()
-export class GolangProject implements Project {
+export class GolangProject {
 	source: Directory
 	ctr: Container
 	buildCache: CacheVolume
@@ -15,7 +14,7 @@ export class GolangProject implements Project {
 		source: Directory
 	) {
 		this.source = source; // Copy the entire monorepo to get the .git directory
-		this.ctr = dag.goreleaser({ version: "latest" }).ctr();
+		this.ctr = dag.container().from("golang:1.24")
 		this.buildCache = dag.cacheVolume("go-build-cache") // ~/.cache/go-build (Linux)
 		this.packageCache = dag.cacheVolume("go-pkg-cache")
 	}
@@ -46,42 +45,20 @@ export class GolangProject implements Project {
 		return dag.directory()
 	}
 
-	// Add Golang specific methods here
+	@func()
+	buildDockerImage(imageName: string, output: string, mainFile: string, awsCreds: File, region: string, accountID: string, tags: string[]): Promise<string[]> {
+		const OCIImage = dag
+			.container()
+			.from("alpine")
+			.withFile(`/bin/${output}`, this.build(output, mainFile))
+			.withEntrypoint([`/bin/${output}`])
+
+
+		return Promise.all(
+			tags.map(tag => {
+				const fullImageName = `${imageName}:${tag}`;
+				return dag.aws().ecrPush(awsCreds, region, accountID, fullImageName, OCIImage);
+			})
+		);
+	}
 }
-
-
-
-
-
-
-
-// @object()
-// class GoProject {
-//   source: Directory
-//   ctr: Container
-
-//   constructor(
-//     @argument({ defaultPath: "/", ignore: ["!**/*.go", "!go.sum", "!go.mod"] })
-//     source: Directory
-//   ) {
-//     this.source = source
-//     this.ctr = dag.container()
-//   }
-
-//   @func()
-//   configureContainer(version: string = "1.24"): GoProject {
-//     this.ctr = this.ctr.from(`docker.io/library/golang:${version}`)
-//       .withDirectory("/go/src", this.source)
-//       .withWorkdir("/go/src")
-//       .withExec(["go", "mod", "download"])
-//     return this
-//   }
-
-//   @func()
-//   build(output: string, mainFile: string): File {
-//     return this.ctr
-//       .withMountedCache("/root/.cache/go-build", dag.cacheVolume("go-build-cache"))
-//       .withExec(["go", "build", "-o", output, mainFile])
-//       .file(`/go/src/${output}`)
-//   }
-// }

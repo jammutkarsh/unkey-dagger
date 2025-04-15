@@ -1,12 +1,10 @@
-import { argument, CacheVolume, Container, dag, Directory, func, object } from "@dagger.io/dagger";
-import { Project } from "./index";
+import { argument, CacheVolume, Container, dag, Directory, File, func, object } from "@dagger.io/dagger";
 
 
 @object()
-export class TSProject implements Project {
+export class TSProject {
 	source: Directory
 	ctr: Container
-	buildCache: CacheVolume
 	packageCache: CacheVolume;
 
 	readonly projectDir = "/app/";
@@ -17,27 +15,29 @@ export class TSProject implements Project {
 	) {
 		this.source = source;
 		this.ctr = dag.node().withPnpm().container()
-		this.buildCache = new (CacheVolume) // avoid nil pointer dereference
 		this.packageCache = dag.cacheVolume("npm-pkg-cache")
 	}
 
 	@func()
 	setup(): TSProject {
 		// Assuming all the package manager files are in the root directory
-		this.ctr = this.ctr.withDirectory(this.projectDir, this.source)
-			.withMountedCache("/root/.cache/pnpm", this.buildCache)
+		this.ctr = this.ctr.withWorkdir(this.projectDir)
+			.withDirectory(this.projectDir, this.source)
+			.withMountedCache("/root/.cache/pnpm", this.packageCache)
 			// .withExec(["pnpm", "install", "--prod", "--prefer-frozen-lockfile"])
 			.withExec(["pnpm", "install"])
+			.withExec(["npm", "install", "-g", "workerd@latest", "pnpm"])
 		return this
 	}
 
 	@func()
-	build(buildDir: string, output: string): Directory {
+	build(buildDir: string): File {
 		const workdir = buildDir ? this.projectDir + buildDir : this.projectDir;
 		return this.ctr
 			.withWorkdir(workdir)
-			.withExec(["pnpm", "build", "--verbosity", "10"])
-			.directory(`/app/${output}`)
+			.withExec(["pnpm", "wrangler", "deploy", "--dry-run"])
+			.withExec(["pnpm", "workerd", "compile", "./worker.capnp", ">", "unkey"])
+			.file(`/app/unkey`)
 	}
 
 	@func()
