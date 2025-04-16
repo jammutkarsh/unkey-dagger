@@ -26,18 +26,47 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - name: Configure AWS credentials
+        run: |
+          mkdir -p ~/.aws
+          echo "[default]" > ~/.aws/credentials
+          echo "aws_access_key_id = $AWS_ACCESS_KEY_ID" >> ~/.aws/credentials
+          echo "aws_secret_access_key = $AWS_SECRET_ACCESS_KEY" >> ~/.aws/credentials
+          echo "ECR_TOKEN=$(aws ecr get-login-password --region us-east-1)" >> $GITHUB_ENV
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       - name: Build and Publish Go App
         uses: dagger/dagger-for-github@8.0.0
         with:
           version: "latest"
           verb: call
-          args: dagger call --source . --git-hash $(git rev-parse HEAD) --registry 180071740689.dkr.ecr.us-east-1.amazonaws.com --ecr-token="env://ECR_TOKEN" build-and-push-service --path go/build/api --type go --image-name dagger-ci-go --name unkey-api
+          args: |
+            --source $GITHUB_WORKSPACE
+            --git-hash $(git rev-parse HEAD)
+            --registry 180071740689.dkr.ecr.us-east-1.amazonaws.com
+            --ecr-token="env://ECR_TOKEN"
+            build-and-push-service
+            --path go/build/api
+            --type go
+            --image-name dagger-ci-go
+            --name unkey-api
+        env:
+          ECR_TOKEN: ${{ env.ECR_TOKEN }}
       - name: Build and Publish TS App
         uses: dagger/dagger-for-github@8.0.0
         with:
           version: "latest"
           verb: call
-          args: dagger call --source . --git-hash $(git rev-parse HEAD) --registry 180071740689.dkr.ecr.us-east-1.amazonaws.com --ecr-token="env://ECR_TOKEN" build-and-push-service --path apps/play --type go --image-name dagger-ci-ts --name unkey-playground
+          args: |
+            --source $GITHUB_WORKSPACE
+            --git-hash $(git rev-parse HEAD)
+            --registry 180071740689.dkr.ecr.us-east-1.amazonaws.com
+            --ecr-token="env://ECR_TOKEN"
+            build-and-push-service
+            --path apps/play
+            --type ts
+            --image-name dagger-ci-ts
+            --name unkey-playground
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AWS_REGION: us-east-1
+          ECR_TOKEN: ${{ env.ECR_TOKEN }}
