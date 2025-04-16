@@ -1,4 +1,4 @@
-import { argument, CacheVolume, Container, dag, Directory, File, func, object } from "@dagger.io/dagger";
+import { argument, CacheVolume, Container, dag, Directory, File, func, object, Platform } from "@dagger.io/dagger";
 
 @object()
 export class GolangProject {
@@ -32,11 +32,25 @@ export class GolangProject {
 	}
 
 	@func()
-	build(output: string, mainFile: string): File {
+	build(output: string, mainFile: string, buildFlags: string[] = []): File {
+		// Prepare the build command
+		const buildCmd = ["go", "build"];
+		const outputDir = `/go/src/${output}`
+
+		// Add any build flags if they were provided
+		if (buildFlags.length > 0) {
+			buildCmd.push(...buildFlags);
+		}
+
+		// Add the output file and main file to the command
+		buildCmd.push("-o", outputDir, mainFile);
+
 		return this.ctr
 			.withMountedCache("/root/.cache/go-build", this.buildCache)
-			.withExec(["go", "build", "-o", output, mainFile])
-			.file(`/go/src/${output}`)
+			.withEnvVariable("GOOS", "linux")
+			.withEnvVariable("GOARCH", "arm64")
+			.withExec(buildCmd)
+			.file(outputDir)
 	}
 
 	@func()
@@ -46,19 +60,13 @@ export class GolangProject {
 	}
 
 	@func()
-	buildDockerImage(imageName: string, output: string, mainFile: string, awsCreds: File, region: string, accountID: string, tags: string[]): Promise<string[]> {
-		const OCIImage = dag
-			.container()
+	transferBinary(output: string, mainFile: string): Container {
+		const finalImage = dag
+			.container({ platform: 'linux/arm64' as Platform })
 			.from("alpine")
 			.withFile(`/bin/${output}`, this.build(output, mainFile))
 			.withEntrypoint([`/bin/${output}`])
 
-
-		return Promise.all(
-			tags.map(tag => {
-				const fullImageName = `${imageName}:${tag}`;
-				return dag.aws().ecrPush(awsCreds, region, accountID, fullImageName, OCIImage);
-			})
-		);
+		return finalImage
 	}
 }

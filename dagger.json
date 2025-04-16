@@ -1,19 +1,14 @@
 {
-  "name": "dagger",
-  "engineVersion": "v0.18.2",
+  "name": "dagger2",
+  "engineVersion": "v0.18.3",
   "sdk": {
     "source": "typescript"
   },
   "dependencies": [
     {
       "name": "aws",
-      "source": "github.com/jpadams/aws-for-dagger@v0.1.5",
+      "source": "github.com/daggerverse/dagger-aws@v0.1.5",
       "pin": "1a990041100a99101b5d2dae557215f917379712"
-    },
-    {
-      "name": "goreleaser",
-      "source": "github.com/Excoriate/daggerverse/goreleaser@v1.15.4",
-      "pin": "9987052c010bcbdda3b4c148c2e7b3fe73817f91"
     },
     {
       "name": "node",

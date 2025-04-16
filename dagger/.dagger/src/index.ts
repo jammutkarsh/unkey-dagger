@@ -2,7 +2,7 @@
 	* A Dagger module for building unkey Projects using Go and Docker.
 	*
 */
-import { Directory, File, func, object } from "@dagger.io/dagger";
+import { Container, Directory, File, dag, func, object } from "@dagger.io/dagger";
 import { GolangProject } from "./golang";
 import { TSProject } from "./node";
 
@@ -36,30 +36,38 @@ export class Dagger {
 	}
 
 	@func()
-	buildAndPublishUnkeyAPI(source: Directory, buildDir: string, imageName: string, awsCreds: File, region: string, accountID: string): Promise<string[]> {
+	buildAndPublishUnkeyAPI(source: Directory, buildDir: string, buildFile: string, imageName: string, awsCreds: File, region: string, accountID: string, tags: string[]): Promise<string[]> {
 		const project = new GolangProject(source);
-		return project
+		var binaryName = buildDir.replace(/\//g, "-");
+		var finalContainer = project
 			.setup(buildDir)
-			.buildDockerImage(imageName, "unkey-api", "./build/api/main.go", awsCreds, region, accountID, ["latest", "latest-dev"]);
-	}
+			.transferBinary(binaryName, buildFile);
 
-
-	/**
-	* Build the unkey Health binary.
-	*/
-	@func()
-	buildUnkeyHealth(source: Directory, buildDir: string): File {
-		return this.buildGoProject(source, buildDir, "unkey-health", "./build/health/main.go");
+		return Promise.all(
+			tags.map(tag => {
+				const fullImageName = `${imageName}:${tag}`;
+				return dag.aws().ecrPush(awsCreds, region, accountID, fullImageName, finalContainer);
+			})
+		);
 	}
 
 	/**
 	* Build the unkey API TypeScript project.
 	*/
 	@func()
-	buildTypeScript(source: Directory, buildDir: string): File {
+	buildAndPublishTypeScript(source: Directory, buildDir: string): Container {
 		const project = new TSProject(source);
-		return project
+		const buildDIr = project
 			.setup()
 			.build(buildDir)
+		var finalContainer = dag.node().withPnpm().container()
+			.withDirectory("/app", buildDIr)
+			.withWorkdir("/app")
+			.withExec(["pnpm", "install", "next@latest"])
+			.withFile("/app/package.json", buildDIr.file("package.json"))
+			.withEntrypoint(["pnpm", "run", "start"])
+
+		return finalContainer
 	}
+
 }

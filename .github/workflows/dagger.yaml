@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-publish:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       packages: write
@@ -16,20 +16,30 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Call Dagger Function to build and publish to ghcr.io
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Configure AWS credentials
+        run: |
+          mkdir -p ~/.aws
+          echo "[default]" > ~/.aws/credentials
+          echo "aws_access_key_id = $AWS_ACCESS_KEY_ID" >> ~/.aws/credentials
+          echo "aws_secret_access_key = $AWS_SECRET_ACCESS_KEY" >> ~/.aws/credentials
+          echo "ECR_TOKEN=$(aws ecr get-login-password --region us-east-1)" >> $GITHUB_ENV
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - name: Build and Publish Go App
         uses: dagger/dagger-for-github@8.0.0
         with:
           version: "latest"
           verb: call
-          args: release --gitdir . --dockersocket /var/run/docker.sock --ghtoken $GH_TOKEN  --docker-secret env://DOCKERHUB_TOKEN --docker-user $DOCKERHUB_USERNAME
+          args: dagger call --source . --git-hash $(git rev-parse HEAD) --registry 180071740689.dkr.ecr.us-east-1.amazonaws.com --ecr-token="env://ECR_TOKEN" build-and-push-service --path go/build/api --type go --image-name dagger-ci-go --name unkey-api
+      - name: Build and Publish TS App
+        uses: dagger/dagger-for-github@8.0.0
+        with:
+          version: "latest"
+          verb: call
+          args: dagger call --source . --git-hash $(git rev-parse HEAD) --registry 180071740689.dkr.ecr.us-east-1.amazonaws.com --ecr-token="env://ECR_TOKEN" build-and-push-service --path apps/play --type go --image-name dagger-ci-ts --name unkey-playground
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          AWS_REGION: us-east-1
